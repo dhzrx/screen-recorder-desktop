@@ -25,21 +25,46 @@ export function useRecorder() {
     const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
     const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
     const [recordedCursorData, setRecordedCursorData] = useState<CursorEvent[]>([]);
+    const [recordedDuration, setRecordedDuration] = useState<number>(0);
+    const [debugInfo, setDebugInfo] = useState<{ raw: { x: number, y: number }, uv: { u: number, v: number }, bounds: any } | null>(null);
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
     const cursorLogRef = useRef<CursorEvent[]>([]);
     const startTimeRef = useRef<number>(0);
+    const recordingBoundsRef = useRef<{ x: number, y: number, width: number, height: number } | null>(null);
+    const isRecordingRef = useRef<boolean>(false);
 
     useEffect(() => {
         getSources();
 
         // Listen for cursor position
         const handleCursor = (_event: any, point: { x: number, y: number }) => {
-            if (isRecording) {
+            let u = 0;
+            let v = 0;
+            const bounds = recordingBoundsRef.current;
+
+            // Normalize to UV coordinates (0.0 - 1.0)
+            if (bounds && bounds.width > 0 && bounds.height > 0) {
+                u = (point.x - bounds.x) / bounds.width;
+                v = (point.y - bounds.y) / bounds.height;
+            } else {
+                // Fallback
+                u = point.x / 1920;
+                v = point.y / 1080;
+            }
+
+            setDebugInfo({ raw: point, uv: { u, v }, bounds });
+
+            if (isRecordingRef.current) {
+                // Log every 60th frame
+                if (cursorLogRef.current.length % 60 === 0) {
+                    console.log('Cursor UV:', { u, v }, 'Raw:', point, 'Bounds:', recordingBoundsRef.current);
+                }
+
                 cursorLogRef.current.push({
-                    x: point.x,
-                    y: point.y,
+                    x: u, // Store as UV
+                    y: v, // Store as UV
                     t: Date.now() - startTimeRef.current
                 });
             }
@@ -53,6 +78,7 @@ export function useRecorder() {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
                 mediaRecorderRef.current.stop();
                 setIsRecording(false);
+                isRecordingRef.current = false;
                 // Also hide floating controls via IPC if not already handled by main
                 // @ts-ignore
                 window.ipcRenderer.send('HIDE_FLOATING_CONTROLS');
@@ -64,6 +90,10 @@ export function useRecorder() {
 
         return () => {
             // Cleanup
+            // @ts-ignore
+            window.ipcRenderer.off('cursor-position', handleCursor);
+            // @ts-ignore
+            window.ipcRenderer.off('STOP_RECORDING', handleStopRequest);
         };
     }, [isRecording]);
 
@@ -93,6 +123,28 @@ export function useRecorder() {
 
     const startRecording = async (sourceId: string) => {
         try {
+            console.log('Starting recording for Source ID:', sourceId);
+
+            // Find the source object to get display_id
+            const source = sources.find(s => s.id === sourceId);
+            const displayId = source?.display_id;
+
+            // 0. Get Screen Bounds for Cursor Normalization
+            try {
+                // @ts-ignore
+                const bounds = await window.ipcRenderer.getScreenBounds(sourceId, displayId);
+                if (bounds && bounds.width > 0 && bounds.height > 0) {
+                    recordingBoundsRef.current = bounds;
+                } else {
+                    console.warn('Invalid bounds received, falling back to default');
+                    recordingBoundsRef.current = { x: 0, y: 0, width: 1920, height: 1080 };
+                }
+                console.log('Recording Bounds:', recordingBoundsRef.current);
+            } catch (err) {
+                console.error('Failed to get screen bounds:', err);
+                recordingBoundsRef.current = { x: 0, y: 0, width: 1920, height: 1080 }; // Fallback
+            }
+
             // 1. Get Screen Stream (Raw)
             const screenStream = await navigator.mediaDevices.getUserMedia({
                 audio: false,
@@ -114,6 +166,7 @@ export function useRecorder() {
             chunksRef.current = [];
             cursorLogRef.current = [];
             startTimeRef.current = Date.now();
+            setRecordedDuration(0);
 
             mediaRecorder.ondataavailable = (e) => {
                 if (e.data.size > 0) {
@@ -125,6 +178,7 @@ export function useRecorder() {
                 const blob = new Blob(chunksRef.current, { type: 'video/webm' });
                 setRecordedBlob(blob);
                 setRecordedCursorData(cursorLogRef.current);
+                setRecordedDuration((Date.now() - startTimeRef.current) / 1000); // Seconds
 
                 // Stop tracks
                 screenStream.getTracks().forEach(track => track.stop());
@@ -132,6 +186,7 @@ export function useRecorder() {
 
             mediaRecorder.start();
             setIsRecording(true);
+            isRecordingRef.current = true;
             setSelectedSource(sourceId);
 
             // @ts-ignore
@@ -146,6 +201,7 @@ export function useRecorder() {
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
             setIsRecording(false);
+            isRecordingRef.current = false;
             // @ts-ignore
             window.ipcRenderer.send('HIDE_FLOATING_CONTROLS');
         }
@@ -154,6 +210,7 @@ export function useRecorder() {
     const resetRecording = () => {
         setRecordedBlob(null);
         setRecordedCursorData([]);
+        setRecordedDuration(0);
         setSelectedSource(null);
     };
 
@@ -168,6 +225,8 @@ export function useRecorder() {
         webcamStream,
         recordedBlob,
         recordedCursorData,
-        resetRecording
+        recordedDuration,
+        resetRecording,
+        debugInfo
     };
 }

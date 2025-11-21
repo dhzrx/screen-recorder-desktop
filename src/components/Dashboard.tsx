@@ -12,7 +12,9 @@ export function Dashboard() {
         webcamStream,
         recordedBlob,
         recordedCursorData,
-        resetRecording
+        recordedDuration,
+        resetRecording,
+        debugInfo
     } = useRecorder();
 
     if (recordedBlob) {
@@ -20,6 +22,7 @@ export function Dashboard() {
             <Editor
                 recordedBlob={recordedBlob}
                 cursorData={recordedCursorData}
+                initialDuration={recordedDuration}
                 onClose={resetRecording}
             />
         );
@@ -136,6 +139,25 @@ export function Dashboard() {
                     />
                 </div>
             )}
+            {/* DEBUG OVERLAY */}
+            {/* DEBUG OVERLAY */}
+            <div style={{
+                position: 'fixed',
+                top: 10,
+                left: 10,
+                backgroundColor: 'rgba(0,0,0,0.8)',
+                color: '#0f0',
+                padding: '10px',
+                zIndex: 9999,
+                fontFamily: 'monospace',
+                pointerEvents: 'none',
+                fontSize: '12px'
+            }}>
+                <p>IPC Raw: {debugInfo ? `${debugInfo.raw.x}, ${debugInfo.raw.y}` : 'Waiting...'}</p>
+                <p>Calc UV: {debugInfo ? `${debugInfo.uv.u.toFixed(3)}, ${debugInfo.uv.v.toFixed(3)}` : '...'}</p>
+                <p>Bounds: {debugInfo?.bounds ? `${debugInfo.bounds.width}x${debugInfo.bounds.height} @ ${debugInfo.bounds.x},${debugInfo.bounds.y}` : 'None'}</p>
+                <p>Recording: {isRecording ? 'YES' : 'NO'}</p>
+            </div>
         </div>
     );
 }

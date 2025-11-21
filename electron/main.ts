@@ -1,41 +1,6 @@
 import { app, BrowserWindow, ipcMain, desktopCapturer, screen } from 'electron'
 import path from 'node:path'
 
-// Handle screen sources request
-ipcMain.handle('DESKTOP_CAPTURER_GET_SOURCES', async () => {
-    return desktopCapturer.getSources({ types: ['window', 'screen'] })
-})
-
-ipcMain.handle('GET_SCREEN_BOUNDS', async (_event, sourceId: string) => {
-    const displays = screen.getAllDisplays();
-    // sourceId from desktopCapturer is usually "screen:0:0" or similar.
-    // The display_id in desktopCapturer matches display.id (but as string).
-
-    // We need to parse the sourceId or find a way to match.
-    // desktopCapturer source.id for screens is usually "screen:display_id"
-
-    const parts = sourceId.split(':');
-    if (parts[0] === 'screen') {
-        const displayId = parseInt(parts[1], 10);
-        const display = displays.find(d => d.id === displayId);
-        if (display) {
-            return display.bounds;
-        }
-    }
-
-    // Fallback: return primary display bounds
-    return screen.getPrimaryDisplay().bounds;
-})
-
-// Handle Stop Recording Request from Floating Window
-ipcMain.on('REQUEST_STOP_RECORDING', () => {
-    if (win && !win.isDestroyed()) {
-        win.webContents.send('STOP_RECORDING');
-    }
-    floatingWin?.hide();
-    win?.show();
-})
-
 // The built directory structure
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
@@ -98,6 +63,40 @@ ipcMain.on('SHOW_FLOATING_CONTROLS', () => {
     // win?.minimize();
 })
 
+ipcMain.handle('DESKTOP_CAPTURER_GET_SOURCES', async (_event, opts) => {
+    const sources = await desktopCapturer.getSources({ types: ['window', 'screen'] });
+    return sources;
+})
+
+ipcMain.handle('GET_SCREEN_BOUNDS', async (_event, sourceId: string, displayId?: string) => {
+    const displays = screen.getAllDisplays();
+    console.log('[Main] GET_SCREEN_BOUNDS request. SourceID:', sourceId, 'DisplayID:', displayId);
+
+    // 1. Try matching by displayId if provided
+    if (displayId) {
+        const id = parseInt(displayId, 10);
+        const display = displays.find(d => d.id === id);
+        if (display) {
+            console.log('[Main] Found Display by displayId:', display.bounds);
+            return display.bounds;
+        }
+    }
+
+    // 2. Try parsing sourceId (Legacy/Fallback)
+    const parts = sourceId.split(':');
+    if (parts[0] === 'screen') {
+        const id = parseInt(parts[1], 10);
+        const display = displays.find(d => d.id === id);
+        if (display) {
+            console.log('[Main] Found Display by sourceId parse:', display.bounds);
+            return display.bounds;
+        }
+    }
+
+    // 3. Fallback: return primary display bounds
+    console.log('[Main] Fallback to Primary Display');
+    return screen.getPrimaryDisplay().bounds;
+})
 ipcMain.on('HIDE_FLOATING_CONTROLS', () => {
     floatingWin?.hide();
     win?.show();

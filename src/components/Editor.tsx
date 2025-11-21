@@ -6,10 +6,16 @@ import { CursorEvent } from '../hooks/useRecorder';
 interface EditorProps {
     recordedBlob: Blob;
     cursorData: CursorEvent[];
+    initialDuration: number;
     onClose: () => void;
 }
 
-export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, onClose }) => {
+export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, initialDuration, onClose }) => {
+    console.log('Editor mounted. Cursor Data Length:', cursorData.length);
+    if (cursorData.length > 0) {
+        console.log('First Cursor Point:', cursorData[0]);
+        console.log('Last Cursor Point:', cursorData[cursorData.length - 1]);
+    }
     // Studio State
     const [zoom, setZoom] = useState(1);
     const [intensity, setIntensity] = useState(0.1);
@@ -19,11 +25,12 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, onClos
     const [bgType, setBgType] = useState<'solid' | 'gradient' | 'image'>('solid');
     const [bgGradient, setBgGradient] = useState('');
     const [bgImage, setBgImage] = useState<string | null>(null);
+    const [hideCursorOnIdle, setHideCursorOnIdle] = useState(false);
 
     // Playback State
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
-    const [duration, setDuration] = useState(0);
+    const [duration, setDuration] = useState(isFinite(initialDuration) && initialDuration > 0 ? initialDuration : 0);
 
     // Refs
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -51,7 +58,10 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, onClos
         if (videoRef.current) {
             videoRef.current.src = URL.createObjectURL(recordedBlob);
             videoRef.current.onloadedmetadata = () => {
-                setDuration(videoRef.current!.duration);
+                const vidDuration = videoRef.current!.duration;
+                if (isFinite(vidDuration) && vidDuration > 0) {
+                    setDuration(vidDuration);
+                }
             };
         }
 
@@ -76,8 +86,9 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, onClos
             compositorRef.current.setBackgroundType(bgType);
             compositorRef.current.setBackgroundGradient(bgGradient);
             compositorRef.current.setBackgroundImage(bgImage);
+            compositorRef.current.setHideCursorOnIdle(hideCursorOnIdle);
         }
-    }, [zoom, intensity, bgColor, pad, radius, bgType, bgGradient, bgImage]);
+    }, [zoom, intensity, bgColor, pad, radius, bgType, bgGradient, bgImage, hideCursorOnIdle]);
 
     // Animation Loop
     useEffect(() => {
@@ -139,15 +150,20 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, onClos
     }, []);
 
     const getCursorAtTime = (time: number, data: CursorEvent[]) => {
-        // Simple linear search or binary search
-        // For now, find the last event before time
-        // Optimization: remember last index
+        if (data.length === 0) return null;
+
+        // Adjust time to match cursor event timestamps
+        // Cursor events start at some offset (e.g., 25ms), but video time starts at 0
+        const firstEventTime = data[0].t;
+        const adjustedTime = time + firstEventTime;
+
+        // Find the last event before or at the adjusted time
         for (let i = data.length - 1; i >= 0; i--) {
-            if (data[i].t <= time) {
+            if (data[i].t <= adjustedTime) {
                 return data[i];
             }
         }
-        return data[0]; // Default to start
+        return data[0]; // Fallback to first event
     };
 
     const togglePlay = () => {
@@ -190,6 +206,8 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, onClos
                     setBackgroundGradient={setBgGradient}
                     backgroundImage={bgImage}
                     setBackgroundImage={setBgImage}
+                    hideCursorOnIdle={hideCursorOnIdle}
+                    setHideCursorOnIdle={setHideCursorOnIdle}
                 />
                 <div style={{ padding: '1rem', borderTop: '1px solid #333' }}>
                     <button onClick={onClose} style={{ width: '100%', padding: '0.8rem', background: '#333', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>

@@ -16,6 +16,9 @@ export class Compositor {
     private currentCursor: { x: number, y: number } = { x: 0, y: 0 };
     private cursorHistory: { x: number, y: number }[] = [];
     private readonly MAX_HISTORY = 5;
+    private lastCursorUpdate: number = Date.now();
+    private idleThreshold: number = 2000; // 2 seconds default
+    private hideCursorOnIdle: boolean = false;
 
     private screenBounds: { x: number, y: number, width: number, height: number } = { x: 0, y: 0, width: 1920, height: 1080 };
 
@@ -66,7 +69,17 @@ export class Compositor {
     }
 
     public updateCursorPosition(x: number, y: number) {
+        // Debug log (sample)
+        if (Math.random() < 0.02) {
+            console.log(`[Compositor.updateCursorPosition] Setting targetCursor to (${x.toFixed(3)}, ${y.toFixed(3)})`);
+        }
+
+        // Check if position actually changed to avoid fake updates
+        if (x !== this.targetCursor.x || y !== this.targetCursor.y) {
+            this.lastCursorUpdate = Date.now();
+        }
         this.targetCursor = { x, y };
+
         // Initialize current if it's the first update
         if (this.currentCursor.x === 0 && this.currentCursor.y === 0) {
             this.currentCursor = { x, y };
@@ -111,6 +124,10 @@ export class Compositor {
 
     public setBackgroundType(type: 'solid' | 'gradient' | 'image') {
         this.backgroundType = type;
+    }
+
+    public setHideCursorOnIdle(enable: boolean) {
+        this.hideCursorOnIdle = enable;
     }
 
     public start() {
@@ -172,6 +189,9 @@ export class Compositor {
             this.ctx.fillRect(0, 0, width, height);
         }
 
+        // Smart Zoom Logic
+        this.updateSmartZoom();
+
         // Smooth Zoom Transition
         this.currentZoomLevel += (this.targetZoomLevel - this.currentZoomLevel) * this.zoomIntensity;
 
@@ -205,11 +225,9 @@ export class Compositor {
                 this.ctx.clip();
             }
 
-            const relativeCursorX = this.currentCursor.x - this.screenBounds.x;
-            const relativeCursorY = this.currentCursor.y - this.screenBounds.y;
-
-            const scaledCursorX = (relativeCursorX / this.screenBounds.width) * width;
-            const scaledCursorY = (relativeCursorY / this.screenBounds.height) * height;
+            // Calculate cursor position in canvas pixels for zoom center
+            const scaledCursorX = this.currentCursor.x * width;
+            const scaledCursorY = this.currentCursor.y * height;
 
             if (this.currentZoomLevel > 1.01) {
                 const zoomedWidth = width / this.currentZoomLevel;
@@ -254,6 +272,14 @@ export class Compositor {
     }
 
     private drawCursor() {
+        // Idle Check
+        if (this.hideCursorOnIdle) {
+            const timeSinceLastMove = Date.now() - this.lastCursorUpdate;
+            if (timeSinceLastMove > this.idleThreshold) {
+                return; // Hide cursor
+            }
+        }
+
         const width = this.canvas.width;
         const height = this.canvas.height;
         const innerWidth = width - (this.padding * 2);
@@ -262,10 +288,10 @@ export class Compositor {
         const startY = this.padding;
 
         const mapCursor = (cursor: { x: number, y: number }) => {
-            const relativeCursorX = cursor.x - this.screenBounds.x;
-            const relativeCursorY = cursor.y - this.screenBounds.y;
-            const scaledCursorX = (relativeCursorX / this.screenBounds.width) * width;
-            const scaledCursorY = (relativeCursorY / this.screenBounds.height) * height;
+            // Cursor x,y are now UV coordinates (0.0 - 1.0)
+            // Map to canvas dimensions
+            const scaledCursorX = cursor.x * width;
+            const scaledCursorY = cursor.y * height;
 
             let drawX = scaledCursorX;
             let drawY = scaledCursorY;
@@ -274,10 +300,9 @@ export class Compositor {
                 const zoomedWidth = width / this.currentZoomLevel;
                 const zoomedHeight = height / this.currentZoomLevel;
 
-                const relativeCurrentX = this.currentCursor.x - this.screenBounds.x;
-                const relativeCurrentY = this.currentCursor.y - this.screenBounds.y;
-                const scaledCurrentX = (relativeCurrentX / this.screenBounds.width) * width;
-                const scaledCurrentY = (relativeCurrentY / this.screenBounds.height) * height;
+                // Current cursor (focus point) in canvas pixels
+                const scaledCurrentX = this.currentCursor.x * width;
+                const scaledCurrentY = this.currentCursor.y * height;
 
                 let sx = scaledCurrentX - zoomedWidth / 2;
                 let sy = scaledCurrentY - zoomedHeight / 2;
@@ -303,22 +328,51 @@ export class Compositor {
         // Draw Ghost Cursors (Motion Blur)
         for (let i = 0; i < this.cursorHistory.length; i++) {
             const pos = mapCursor(this.cursorHistory[i]);
-            const opacity = (i + 1) / (this.cursorHistory.length + 1) * 0.5;
+            const opacity = (i + 1) / (this.cursorHistory.length + 1) * 0.3; // Reduced opacity
 
             this.ctx.beginPath();
-            this.ctx.arc(pos.x, pos.y, 10, 0, 2 * Math.PI);
+            this.ctx.arc(pos.x, pos.y, 15, 0, 2 * Math.PI); // Bigger Ghost
             this.ctx.fillStyle = `rgba(255, 0, 0, ${opacity})`;
             this.ctx.fill();
         }
 
-        // Draw Main Cursor
+        // Draw Main Cursor (Bigger Halo)
         const mainPos = mapCursor(this.currentCursor);
+
+        // 1. Outer Halo (Semi-transparent)
         this.ctx.beginPath();
-        this.ctx.arc(mainPos.x, mainPos.y, 10, 0, 2 * Math.PI);
+        this.ctx.arc(mainPos.x, mainPos.y, 25, 0, 2 * Math.PI);
+        this.ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+        this.ctx.fill();
+
+        // 2. Inner Core (Solid)
+        this.ctx.beginPath();
+        this.ctx.arc(mainPos.x, mainPos.y, 12, 0, 2 * Math.PI);
         this.ctx.fillStyle = 'rgba(255, 0, 0, 0.9)';
         this.ctx.fill();
         this.ctx.strokeStyle = 'white';
-        this.ctx.lineWidth = 2;
+        this.ctx.lineWidth = 3;
         this.ctx.stroke();
+    }
+
+    private updateSmartZoom() {
+        // Calculate Velocity (Distance moved since last frame)
+        // We need previous cursor position.
+        // currentCursor is updated every frame in draw loop via lerp.
+        // targetCursor is the raw input.
+
+        // Let's use targetCursor changes to detect "Input Activity"
+        // If targetCursor hasn't changed for X ms, we are "Dwelling".
+
+        const timeSinceLastMove = Date.now() - this.lastCursorUpdate;
+        const DWELL_THRESHOLD = 400; // 0.4s to trigger zoom
+
+        if (timeSinceLastMove > DWELL_THRESHOLD) {
+            // User is dwelling/reading/focusing -> Zoom In
+            this.targetZoomLevel = 1.5;
+        } else {
+            // User is moving -> Zoom Out (Overview)
+            this.targetZoomLevel = 1.0;
+        }
     }
 }

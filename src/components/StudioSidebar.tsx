@@ -17,6 +17,8 @@ interface StudioSidebarProps {
     setBackgroundGradient: (gradient: string) => void;
     backgroundImage: string | null;
     setBackgroundImage: (image: string | null) => void;
+    hideCursorOnIdle: boolean;
+    setHideCursorOnIdle: (enable: boolean) => void;
 }
 
 export const StudioSidebar: React.FC<StudioSidebarProps> = ({
@@ -35,7 +37,9 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
     backgroundGradient,
     setBackgroundGradient,
     backgroundImage,
-    setBackgroundImage
+    setBackgroundImage,
+    hideCursorOnIdle,
+    setHideCursorOnIdle
 }) => {
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -246,6 +250,38 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
                         onChange={(e) => setZoomIntensity(parseFloat(e.target.value))}
                         style={{ width: '100%', accentColor: '#646cff' }}
                     />
+                </div>
+
+                <div className="control-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1rem' }}>
+                    <span style={{ fontSize: '0.85rem' }}>Hide Cursor on Idle</span>
+                    <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '40px', height: '20px' }}>
+                        <input
+                            type="checkbox"
+                            checked={hideCursorOnIdle}
+                            onChange={(e) => setHideCursorOnIdle(e.target.checked)}
+                            style={{ opacity: 0, width: 0, height: 0 }}
+                        />
+                        <span style={{
+                            position: 'absolute',
+                            cursor: 'pointer',
+                            top: 0, left: 0, right: 0, bottom: 0,
+                            backgroundColor: hideCursorOnIdle ? '#646cff' : '#444',
+                            borderRadius: '20px',
+                            transition: '0.4s'
+                        }}>
+                            <span style={{
+                                position: 'absolute',
+                                content: '""',
+                                height: '16px',
+                                width: '16px',
+                                left: hideCursorOnIdle ? '22px' : '2px',
+                                bottom: '2px',
+                                backgroundColor: 'white',
+                                borderRadius: '50%',
+                                transition: '0.4s'
+                            }} />
+                        </span>
+                    </label>
                 </div>
             </div>
         </div>
