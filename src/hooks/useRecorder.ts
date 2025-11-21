@@ -57,11 +57,6 @@ export function useRecorder() {
             setDebugInfo({ raw: point, uv: { u, v }, bounds });
 
             if (isRecordingRef.current) {
-                // Log every 60th frame
-                if (cursorLogRef.current.length % 60 === 0) {
-                    console.log('Cursor UV:', { u, v }, 'Raw:', point, 'Bounds:', recordingBoundsRef.current);
-                }
-
                 cursorLogRef.current.push({
                     x: u, // Store as UV
                     y: v, // Store as UV

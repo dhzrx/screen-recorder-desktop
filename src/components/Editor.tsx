@@ -34,7 +34,6 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, initia
 
     // Refs
     const videoRef = useRef<HTMLVideoElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const compositorRef = useRef<Compositor | null>(null);
     const animationFrameRef = useRef<number | null>(null);
@@ -93,7 +92,7 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, initia
     // Animation Loop
     useEffect(() => {
         const draw = () => {
-            if (compositorRef.current && videoRef.current && canvasRef.current) {
+            if (compositorRef.current && videoRef.current) {
                 // 1. Update Cursor Position based on Video Time
                 const time = videoRef.current.currentTime * 1000; // ms
                 const cursor = getCursorAtTime(time, cursorData);
@@ -120,6 +119,9 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, initia
         if (compositorRef.current) {
             compositorRef.current.start();
         }
+
+        // Start our animation loop to update cursor position
+        draw();
 
         // We also need a loop to update React state for the timeline scrubber
         const updateTime = () => {
