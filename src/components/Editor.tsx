@@ -12,7 +12,6 @@ interface EditorProps {
 }
 
 export const Editor: React.FC<EditorProps> = ({ recordedBlob, webcamBlob, cursorData, initialDuration, onClose }) => {
-    console.log('Editor mounted. Cursor Data Length:', cursorData.length);
     if (cursorData.length > 0) {
         console.log('First Cursor Point:', cursorData[0]);
         console.log('Last Cursor Point:', cursorData[cursorData.length - 1]);
@@ -59,6 +58,7 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, webcamBlob, cursor
         // Handle Webcam Blob
         if (webcamVideoRef.current && webcamBlob) {
             webcamVideoRef.current.src = URL.createObjectURL(webcamBlob);
+            webcamVideoRef.current.load(); // Ensure it loads
             // We need to wait for metadata to play, but we want to sync it with main video
             // For now, let's just set it as source in Compositor
             if (compositorRef.current) {
@@ -84,7 +84,7 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, webcamBlob, cursor
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [recordedBlob]);
+    }, [recordedBlob, webcamBlob]);
 
     // Sync Settings
     useEffect(() => {

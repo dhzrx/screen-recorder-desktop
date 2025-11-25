@@ -259,16 +259,50 @@ export class Compositor {
         // Check for srcObject (Stream) OR src (Blob URL)
         const hasWebcamSource = this.webcamVideo.srcObject || this.webcamVideo.src;
         if (this.webcamVideo.readyState >= 2 && hasWebcamSource) {
-            const webcamWidth = 320;
-            const webcamHeight = 180;
-            const padding = 20;
-            this.ctx.drawImage(
-                this.webcamVideo,
-                this.canvas.width - webcamWidth - padding,
-                this.canvas.height - webcamHeight - padding,
-                webcamWidth,
-                webcamHeight
-            );
+            const size = 300; // Diameter
+            const padding = 40;
+            const x = padding;
+            const y = this.canvas.height - size - padding;
+
+            this.ctx.save();
+
+            // Shadow
+            this.ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            this.ctx.shadowBlur = 20;
+            this.ctx.shadowOffsetX = 0;
+            this.ctx.shadowOffsetY = 4;
+
+            // Circle Path
+            this.ctx.beginPath();
+            this.ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+            this.ctx.closePath();
+
+            // Clip
+            this.ctx.clip();
+
+            // Draw Video (Center Crop)
+            const videoAspect = this.webcamVideo.videoWidth / this.webcamVideo.videoHeight;
+            let drawWidth = size;
+            let drawHeight = size;
+            let offsetX = 0;
+            let offsetY = 0;
+
+            if (videoAspect > 1) {
+                drawWidth = size * videoAspect;
+                offsetX = -(drawWidth - size) / 2;
+            } else {
+                drawHeight = size / videoAspect;
+                offsetY = -(drawHeight - size) / 2;
+            }
+
+            this.ctx.drawImage(this.webcamVideo, x + offsetX, y + offsetY, drawWidth, drawHeight);
+
+            // Border
+            this.ctx.strokeStyle = 'white';
+            this.ctx.lineWidth = 4;
+            this.ctx.stroke();
+
+            this.ctx.restore();
         }
 
         // 4. Draw Cursor with Motion Blur
