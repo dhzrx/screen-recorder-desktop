@@ -261,7 +261,7 @@ export class Compositor {
         if (this.webcamVideo.readyState >= 2 && hasWebcamSource) {
             const size = 300; // Diameter
             const padding = 40;
-            const x = padding;
+            const x = this.canvas.width - size - padding; // Bottom-Right
             const y = this.canvas.height - size - padding;
 
             this.ctx.save();
