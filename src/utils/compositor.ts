@@ -64,6 +64,10 @@ export class Compositor {
         }
     }
 
+    public setWebcamSource(video: HTMLVideoElement) {
+        this.webcamVideo = video;
+    }
+
     public setScreenBounds(bounds: { x: number, y: number, width: number, height: number }) {
         this.screenBounds = bounds;
     }
@@ -252,7 +256,9 @@ export class Compositor {
         }
 
         // 3. Draw Webcam Overlay
-        if (this.webcamVideo.readyState === 4 && this.webcamVideo.srcObject) {
+        // Check for srcObject (Stream) OR src (Blob URL)
+        const hasWebcamSource = this.webcamVideo.srcObject || this.webcamVideo.src;
+        if (this.webcamVideo.readyState >= 2 && hasWebcamSource) {
             const webcamWidth = 320;
             const webcamHeight = 180;
             const padding = 20;

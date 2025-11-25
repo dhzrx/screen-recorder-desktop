@@ -24,12 +24,15 @@ export function useRecorder() {
     const [isRecording, setIsRecording] = useState(false);
     const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
     const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+    const [webcamBlob, setWebcamBlob] = useState<Blob | null>(null);
     const [recordedCursorData, setRecordedCursorData] = useState<CursorEvent[]>([]);
     const [recordedDuration, setRecordedDuration] = useState<number>(0);
     const [debugInfo, setDebugInfo] = useState<{ raw: { x: number, y: number }, uv: { u: number, v: number }, bounds: any } | null>(null);
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const webcamRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
+    const webcamChunksRef = useRef<Blob[]>([]);
     const cursorLogRef = useRef<CursorEvent[]>([]);
     const startTimeRef = useRef<number>(0);
     const recordingBoundsRef = useRef<{ x: number, y: number, width: number, height: number } | null>(null);
@@ -155,7 +158,7 @@ export function useRecorder() {
                 } as any
             });
 
-            // Start Recording
+            // Start Recording Screen
             const mediaRecorder = new MediaRecorder(screenStream, { mimeType: 'video/webm; codecs=vp9' });
             mediaRecorderRef.current = mediaRecorder;
             chunksRef.current = [];
@@ -180,6 +183,26 @@ export function useRecorder() {
             };
 
             mediaRecorder.start();
+
+            // Start Recording Webcam (if enabled)
+            if (webcamStream) {
+                const webcamRecorder = new MediaRecorder(webcamStream, { mimeType: 'video/webm; codecs=vp9' });
+                webcamRecorderRef.current = webcamRecorder;
+                webcamChunksRef.current = [];
+
+                webcamRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        webcamChunksRef.current.push(e.data);
+                    }
+                };
+
+                webcamRecorder.onstop = () => {
+                    const blob = new Blob(webcamChunksRef.current, { type: 'video/webm' });
+                    setWebcamBlob(blob);
+                };
+
+                webcamRecorder.start();
+            }
             setIsRecording(true);
             isRecordingRef.current = true;
             setSelectedSource(sourceId);
@@ -195,6 +218,9 @@ export function useRecorder() {
     const stopRecording = () => {
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
+            if (webcamRecorderRef.current && webcamRecorderRef.current.state === 'recording') {
+                webcamRecorderRef.current.stop();
+            }
             setIsRecording(false);
             isRecordingRef.current = false;
             // @ts-ignore
@@ -204,6 +230,7 @@ export function useRecorder() {
 
     const resetRecording = () => {
         setRecordedBlob(null);
+        setWebcamBlob(null);
         setRecordedCursorData([]);
         setRecordedDuration(0);
         setSelectedSource(null);
@@ -219,6 +246,7 @@ export function useRecorder() {
         toggleWebcam,
         webcamStream,
         recordedBlob,
+        webcamBlob,
         recordedCursorData,
         recordedDuration,
         resetRecording,

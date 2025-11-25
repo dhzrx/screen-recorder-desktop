@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react';
 import { useRecorder } from '../hooks/useRecorder';
 import { Editor } from './Editor';
 
@@ -11,16 +12,26 @@ export function Dashboard() {
         toggleWebcam,
         webcamStream,
         recordedBlob,
+        webcamBlob,
         recordedCursorData,
         recordedDuration,
         resetRecording,
         debugInfo
     } = useRecorder();
 
+    const webcamVideoRef = useRef<HTMLVideoElement>(null);
+
+    useEffect(() => {
+        if (webcamVideoRef.current) {
+            webcamVideoRef.current.srcObject = webcamStream;
+        }
+    }, [webcamStream]);
+
     if (recordedBlob) {
         return (
             <Editor
                 recordedBlob={recordedBlob}
+                webcamBlob={webcamBlob}
                 cursorData={recordedCursorData}
                 initialDuration={recordedDuration}
                 onClose={resetRecording}
@@ -132,7 +143,7 @@ export function Dashboard() {
                     zIndex: 100
                 }}>
                     <video
-                        ref={video => { if (video) video.srcObject = webcamStream }}
+                        ref={webcamVideoRef}
                         autoPlay
                         muted
                         style={{ width: '100%', display: 'block' }}

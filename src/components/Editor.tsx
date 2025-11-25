@@ -5,12 +5,13 @@ import { CursorEvent } from '../hooks/useRecorder';
 
 interface EditorProps {
     recordedBlob: Blob;
+    webcamBlob: Blob | null;
     cursorData: CursorEvent[];
     initialDuration: number;
     onClose: () => void;
 }
 
-export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, initialDuration, onClose }) => {
+export const Editor: React.FC<EditorProps> = ({ recordedBlob, webcamBlob, cursorData, initialDuration, onClose }) => {
     console.log('Editor mounted. Cursor Data Length:', cursorData.length);
     if (cursorData.length > 0) {
         console.log('First Cursor Point:', cursorData[0]);
@@ -34,6 +35,7 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, initia
 
     // Refs
     const videoRef = useRef<HTMLVideoElement>(null);
+    const webcamVideoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const compositorRef = useRef<Compositor | null>(null);
     const animationFrameRef = useRef<number | null>(null);
@@ -52,6 +54,16 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, initia
             comp.setPadding(pad);
             comp.setBorderRadius(radius);
             comp.setBackgroundType(bgType);
+        }
+
+        // Handle Webcam Blob
+        if (webcamVideoRef.current && webcamBlob) {
+            webcamVideoRef.current.src = URL.createObjectURL(webcamBlob);
+            // We need to wait for metadata to play, but we want to sync it with main video
+            // For now, let's just set it as source in Compositor
+            if (compositorRef.current) {
+                compositorRef.current.setWebcamSource(webcamVideoRef.current);
+            }
         }
 
         if (videoRef.current) {
@@ -172,8 +184,10 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, initia
         if (videoRef.current) {
             if (isPlaying) {
                 videoRef.current.pause();
+                if (webcamVideoRef.current) webcamVideoRef.current.pause();
             } else {
                 videoRef.current.play();
+                if (webcamVideoRef.current) webcamVideoRef.current.play();
             }
             setIsPlaying(!isPlaying);
         }
@@ -183,6 +197,7 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, initia
         const time = parseFloat(e.target.value);
         if (videoRef.current) {
             videoRef.current.currentTime = time;
+            if (webcamVideoRef.current) webcamVideoRef.current.currentTime = time;
             setCurrentTime(time);
         }
     };
@@ -251,6 +266,8 @@ export const Editor: React.FC<EditorProps> = ({ recordedBlob, cursorData, initia
 
             {/* Hidden Video Element for Source */}
             <video ref={videoRef} style={{ display: 'none' }} muted playsInline />
+            {/* Hidden Video Element for Webcam */}
+            <video ref={webcamVideoRef} style={{ display: 'none' }} muted playsInline />
         </div>
     );
 };
